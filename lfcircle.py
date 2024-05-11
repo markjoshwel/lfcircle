@@ -605,7 +605,7 @@ def _rank(
         insort(ranking, _r, key=k)
 
     for i, _r in enumerate(reversed(ranking), start=1):
-        if _r.user == r.user:
+        if _r == r:
             return i
     else:
         return 0
@@ -643,22 +643,22 @@ def make_circle_report(
                 leaderboard_scrobble_pos=_rank(
                     r=report,
                     rs=listening_reports,
-                    k=lambda r: r.listening_time_hours + r.scrobbles_count,
+                    k=lambda r: r.scrobbles_count,
                 ),
                 leaderboard_artists_pos=_rank(
                     r=report,
                     rs=listening_reports,
-                    k=lambda r: r.listening_time_hours + r.artists_count,
+                    k=lambda r: r.artists_count,
                 ),
                 leaderboard_albums_pos=_rank(
                     r=report,
                     rs=listening_reports,
-                    k=lambda r: r.listening_time_hours + r.albums_count,
+                    k=lambda r: r.albums_count,
                 ),
                 leaderboard_tracks_pos=_rank(
                     r=report,
                     rs=listening_reports,
-                    k=lambda r: r.listening_time_hours + r.tracks_count,
+                    k=lambda r: r.tracks_count,
                 ),
                 leaderboard_n=len(listening_reports),
             )
@@ -674,7 +674,7 @@ def cli() -> None:
     reports: list[ListeningReport] = []
 
     print(behaviour, file=stderr) if behaviour.verbose else ...
-    for i, target in enumerate(behaviour.targets):
+    for i, target in enumerate(set(behaviour.targets)):
         try:
             reports.append(
                 get_listening_report(
