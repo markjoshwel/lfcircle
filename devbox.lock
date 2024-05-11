@@ -1,0 +1,67 @@
+{
+  "lockfile_version": "1",
+  "packages": {
+    "poetry@latest": {
+      "last_modified": "2024-05-05T12:27:12Z",
+      "plugin_version": "0.0.4",
+      "resolved": "github:NixOS/nixpkgs/ee4a6e0f566fe5ec79968c57a9c2c3c25f2cf41d#poetry",
+      "source": "devbox-search",
+      "version": "1.8.2",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/f2ccsamq9ihl22qdq1csxqq2j33i2qzm-python3.11-poetry-1.8.2"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/iv04hlc8xw5br8hy55zzahp779akd7di-python3.11-poetry-1.8.2"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/gs5vyiag9w6g4ypyzy8r4ld3r004pxdz-python3.11-poetry-1.8.2"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/91hqj12jj1249hymnvb0sd6qzm5fhz32-python3.11-poetry-1.8.2"
+        }
+      }
+    },
+    "python312@latest": {
+      "last_modified": "2024-05-03T15:42:32Z",
+      "plugin_version": "0.0.3",
+      "resolved": "github:NixOS/nixpkgs/5fd8536a9a5932d4ae8de52b7dc08d92041237fc#python312",
+      "source": "devbox-search",
+      "version": "3.12.3",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/7bz0d53vngyxzhs6axavfw2dhl9vwlww-python3-3.12.3"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/nw7n1zgfiwxvrlxcn6nkggvxvk6msvl9-python3-3.12.3"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/g8jihlbhc9sv3d2i4lnagyn2mj74mmjf-python3-3.12.3"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/aav6i2sih47qjwz0shpl4mmpp877v16k-python3-3.12.3"
+        }
+      }
+    },
+    "ruff@latest": {
+      "last_modified": "2024-05-06T06:27:37Z",
+      "resolved": "github:NixOS/nixpkgs/dd1290b0f857782a60b251f89651c831cd3eef9d#ruff",
+      "source": "devbox-search",
+      "version": "0.4.3",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/9swiy4y7d75jgryswh1hhc60mpki0sdl-ruff-0.4.3"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/qphi7qrnaig302fhglbkyjygaiy47d10-ruff-0.4.3"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/p1jpghv0zyqjvf43hxvj4zcrin9z5ic9-ruff-0.4.3"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/1fd8kdlbsmgcq60z7pnvwzh7rf6ggqh1-ruff-0.4.3"
+        }
+      }
+    }
+  }
+}

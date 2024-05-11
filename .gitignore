@@ -1,0 +1,5 @@
+__pycache__/
+.devbox/
+.mypy_cache/
+.venv_cache/
+.venv/

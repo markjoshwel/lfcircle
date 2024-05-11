@@ -1,0 +1,7 @@
+{
+  "packages": [
+    "python312@latest",
+    "poetry@latest",
+    "ruff@latest"
+  ]
+}

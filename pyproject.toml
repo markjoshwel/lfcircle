@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "lfcircle"
+version = "0.1.0"
+description = "last.fm statistics generator for your friend circle!"
+authors = ["Mark Joshwel <mark@joshwel.co>"]
+license = "Unlicense"
+readme = "README.md"
+
+[tool.poetry.scripts]
+lfcircle = 'lfcircle:cli'
+
+[tool.poetry.dependencies]
+python = "^3.10"
+beautifulsoup4 = "^4.12.3"
+requests = "^2.31.0"
+html5lib = "^1.1"
+
+[tool.poetry.group.dev.dependencies]
+types-beautifulsoup4 = "^4.12.0.20240504"
+mypy = "^1.10.0"
+isort = "^5.13.2"
+black = "^24.4.2"
+types-requests = "^2.31.0.20240406"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
