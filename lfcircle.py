@@ -31,6 +31,7 @@ For more information, please refer to <http://unlicense.org/>
 """
 
 from argparse import ArgumentParser
+from bisect import insort
 from datetime import datetime, timedelta
 from enum import Enum
 from functools import wraps
@@ -38,15 +39,15 @@ from sys import stderr
 from textwrap import indent
 from time import sleep
 from traceback import format_exception
-from typing import Callable, NamedTuple, ParamSpec, TypeVar
+from typing import Callable, Final, NamedTuple, ParamSpec, TypeVar
 from urllib.parse import unquote
 
 from bs4 import BeautifulSoup
-from requests import Response
-from requests import get as _get
+from requests import Response, get
 
-USER_AGENT = (
-    "Mozilla/5.0 (compatible; lfcircle; https://github.com/markjoshwel/lfcircle)"
+FORMAT_TELEGRAM_PREFIX: Final[str] = "   "
+USER_AGENT: Final[str] = (
+    "Mozilla/5.0 " "(compatible; lfcircle; https://github.com/markjoshwel/lfcircle)"
 )
 
 
@@ -176,7 +177,6 @@ class Limiter:
     """helper to class to not bomb last.hq"""
 
     max_per_second: int = 1
-    user_agent: str = USER_AGENT
     last_call: datetime | None = None
 
     def limit(
@@ -250,20 +250,19 @@ class ListeningReport(NamedTuple):
         leaderboard_tracks_pos: int,
         leaderboard_n: int,
     ) -> str:
+        basket: list[str] = []
+        prefix: str = ""
         text: str = ""
 
         match behaviour.format:
             case FormatTypeEnum.ASCII:
-                basket: list[str] = []
-
                 # intro
                 basket.append(
                     (_prefix := f"{leaderboard_pos}. ")
                     + f"{self.user} — Σ{self.listening_time_hours}h; {self.scrobbles_daily_avg}s/d  "
                 )
                 basket.append(
-                    indent(f"<{self.url}>", prefix=(prefix := " " * len(_prefix)))
-                    + "\n"
+                    indent(f"<{self.url}>", prefix=(prefix := " " * len(_prefix))) + "\n"
                 )
 
                 rmax = len(f"#{leaderboard_n}")
@@ -307,7 +306,7 @@ class ListeningReport(NamedTuple):
 
                 # detail 4: total period tracks count
                 d4_l = indent(
-                    f"{self.artists_count} tracks".ljust(len(ls))
+                    f"{self.tracks_count} tracks".ljust(len(ls))
                     + " ("
                     + f"#{leaderboard_tracks_pos}".rjust(rmax)
                     + ") : ",
@@ -328,8 +327,7 @@ class ListeningReport(NamedTuple):
                     text = "\n".join(basket[:3] + [s.lower() for s in basket[3:]])
 
             case FormatTypeEnum.TELEGRAM:
-                basket: list[str] = []
-                prefix: str = "   "
+                prefix = FORMAT_TELEGRAM_PREFIX
 
                 # intro
                 basket.append(
@@ -394,8 +392,13 @@ def get_listening_report(
     limiter: Limiter,
     behaviour: Behaviour,
 ) -> ListeningReport:
+
     target_url: str = f"https://www.last.fm/user/{target}/listening-report/week"
-    page_res: Response = limiter.limit(_get)(target_url)
+
+    page_res: Response = limiter.limit(get)(
+        target_url,
+        headers={"User-Agent": USER_AGENT},
+    )
 
     if page_res.status_code != 200:
         raise Exception(
@@ -422,9 +425,22 @@ def get_listening_report(
     )
 
 
+def _int(number: str) -> int:
+    n = (
+        number.replace(",", "")
+        .replace("scrobbles", "")
+        .strip()
+        .lstrip("days,")
+        .rstrip("hours")
+        .strip()
+    )
+    assert n.isnumeric()
+    return int(n)
+
+
 def _get_scrobbles_count(page: BeautifulSoup) -> int:
     assert (_1 := page.select_one(".report-headline-total")) is not None
-    return int(_1.text.strip().replace(",", ""))
+    return _int(_1.text)
 
 
 def _get_scrobbles_daily_avg(page: BeautifulSoup) -> int:
@@ -434,7 +450,7 @@ def _get_scrobbles_daily_avg(page: BeautifulSoup) -> int:
             continue
 
         assert (_1 := fact.select_one(".quick-fact-data-value")) is not None
-        return int(_1.text.strip().replace(",", ""))
+        return _int(_1.text)
 
     else:
         raise Exception(f"could not find '{needle}' fact, {len(facts)=}")
@@ -447,10 +463,10 @@ def _get_listening_time_hours(page: BeautifulSoup) -> int:
             continue
 
         assert (_d1 := fact.select_one(".quick-fact-data-value")) is not None
-        days: int = int(_d1.text.strip().replace(",", ""))
+        days: int = _int(_d1.text)
 
         assert (_h1 := fact.select_one(".quick-fact-data-detail")) is not None
-        hours: int = int(_h1.text.strip().lstrip("days,").rstrip("hours").strip())
+        hours: int = _int(_h1.text)
 
         return (days * 24) + hours
 
@@ -461,7 +477,7 @@ def _get_listening_time_hours(page: BeautifulSoup) -> int:
 def _get_overview_scrobbles(page: BeautifulSoup, needle: str) -> int:
     assert (_1 := page.select_one(needle)) is not None
     assert (_2 := _1.select_one(".top-item-overview__scrobbles")) is not None
-    return int(_2.text.strip().replace(",", ""))
+    return _int(_2.text)
 
 
 def _get_artists_count(page: BeautifulSoup) -> int:
@@ -494,7 +510,7 @@ def _get_top_overview(
     things.append(
         ThingWithScrobbles(
             name=_12.text.strip(),
-            scrobbles=int(_13.text.strip().replace(",", "")),
+            scrobbles=_int(_13.text),
             url=f"https://www.last.fm{_14.attrs.get('href', '/')}",
         )
     )
@@ -504,9 +520,7 @@ def _get_top_overview(
         if len(top.select(select_needle)) == 0:
             continue
 
-        assert (
-            _n := top.select(".listening-report-secondary-top-item-name")
-        ) is not None
+        assert (_n := top.select(".listening-report-secondary-top-item-name")) is not None
         assert (
             _v := top.select(".listening-report-secondary-top-item-value")
         ) is not None
@@ -514,7 +528,7 @@ def _get_top_overview(
 
         for n, v in zip(
             [x.text.strip() for x in _n],
-            [int(y.text.strip()) for y in _v],
+            [_int(y.text) for y in _v],
         ):
             things.append(ThingWithScrobbles(name=n, scrobbles=v))
 
@@ -583,8 +597,18 @@ def _get_tracks_top_new(page: BeautifulSoup) -> ThingWithScrobbles:
     return _get_top_new_thing(page=page, select_needle=".top-new-item-type__track")
 
 
-def _sorter(r: ListeningReport) -> int:
-    return r.listening_time_hours + r.scrobbles_count
+def _rank(
+    r: ListeningReport, rs: list[ListeningReport], k: Callable[[ListeningReport], int]
+):
+    ranking: list[ListeningReport] = []
+    for _r in rs:
+        insort(ranking, _r, key=k)
+
+    for i, _r in enumerate(reversed(ranking), start=1):
+        if _r.user == r.user:
+            return i
+    else:
+        return 0
 
 
 def make_circle_report(
@@ -604,69 +628,38 @@ def make_circle_report(
                 text.append(behaviour.header + "\n")
 
     for leaderboard_pos, report in enumerate(
-        reversed(sorted(listening_reports, key=_sorter)),
+        reversed(
+            sorted(
+                listening_reports,
+                key=lambda r: r.listening_time_hours + r.scrobbles_count,
+            )
+        ),
         start=1,
     ):
-        leaderboard_scrobble_pos: int = 0
-        for leaderboard_scrobble_pos, _report in enumerate(
-            reversed(
-                sorted(
-                    listening_reports,
-                    key=lambda r: r.scrobbles_count,
-                )
-            ),
-            start=1,
-        ):
-            if report == _report:
-                break
-
-        leaderboard_artists_pos: int = 0
-        for leaderboard_artists_pos, _report in enumerate(
-            reversed(
-                sorted(
-                    listening_reports,
-                    key=lambda r: r.artists_count,
-                )
-            ),
-            start=1,
-        ):
-            if report == _report:
-                break
-
-        leaderboard_albums_pos: int = 0
-        for leaderboard_albums_pos, _report in enumerate(
-            reversed(
-                sorted(
-                    listening_reports,
-                    key=lambda r: r.albums_count,
-                )
-            ),
-            start=1,
-        ):
-            if report == _report:
-                break
-
-        leaderboard_tracks_pos: int = 0
-        for leaderboard_tracks_pos, _report in enumerate(
-            reversed(
-                sorted(
-                    listening_reports,
-                    key=lambda r: r.tracks_count,
-                )
-            ),
-            start=1,
-        ):
-            if report == _report:
-                break
-
         text.append(
             report.to_str(
                 behaviour=behaviour,
                 leaderboard_pos=leaderboard_pos,
-                leaderboard_scrobble_pos=leaderboard_scrobble_pos,
-                leaderboard_artists_pos=leaderboard_artists_pos,
-                leaderboard_albums_pos=leaderboard_albums_pos,
-                leaderboard_tracks_pos=leaderboard_tracks_pos,
+                leaderboard_scrobble_pos=_rank(
+                    r=report,
+                    rs=listening_reports,
+                    k=lambda r: r.listening_time_hours + r.scrobbles_count,
+                ),
+                leaderboard_artists_pos=_rank(
+                    r=report,
+                    rs=listening_reports,
+                    k=lambda r: r.listening_time_hours + r.artists_count,
+                ),
+                leaderboard_albums_pos=_rank(
+                    r=report,
+                    rs=listening_reports,
+                    k=lambda r: r.listening_time_hours + r.albums_count,
+                ),
+                leaderboard_tracks_pos=_rank(
+                    r=report,
+                    rs=listening_reports,
+                    k=lambda r: r.listening_time_hours + r.tracks_count,
+                ),
                 leaderboard_n=len(listening_reports),
             )
             + "\n"
@@ -702,12 +695,12 @@ def cli() -> None:
 
         else:
             print(
-                f"{i + 1}/{len(behaviour.targets)}",
+                f"got {target}'s reports... ({i + 1}/{len(behaviour.targets)})",
                 file=stderr,
-                end="\r",
             )
             print(reports[-1], file=stderr) if behaviour.verbose else ...
 
+    print(file=stderr)
     print(make_circle_report(listening_reports=reports, behaviour=behaviour))
 
 
