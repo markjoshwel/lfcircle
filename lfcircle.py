@@ -32,6 +32,7 @@ For more information, please refer to <http://unlicense.org/>
 
 from argparse import ArgumentParser
 from bisect import insort
+from collections import Counter
 from datetime import datetime, timedelta
 from enum import Enum
 from functools import wraps
@@ -239,6 +240,7 @@ class ListeningReport(NamedTuple):
     albums_top_new: ThingWithScrobbles
     tracks_top_new: ThingWithScrobbles
     listening_time_hours: int
+    tags: dict[str, tuple[int, ...]]
 
     def to_str(
         self,
@@ -262,7 +264,8 @@ class ListeningReport(NamedTuple):
                     + f"{self.user} — Σ{self.listening_time_hours}h; {self.scrobbles_daily_avg}s/d  "
                 )
                 basket.append(
-                    indent(f"<{self.url}>", prefix=(prefix := " " * len(_prefix))) + "\n"
+                    indent(f"<{self.url}>", prefix=(prefix := " " * len(_prefix)))
+                    + "\n"
                 )
 
                 rmax = len(f"#{leaderboard_n}")
@@ -320,6 +323,29 @@ class ListeningReport(NamedTuple):
                 )
                 basket.append(d4_l + d4_r + d4_url)
 
+                # detail 5: top five tags
+                if len(self.tags) > 0:
+                    tag_counter = Counter[str]()
+
+                    for tag_name, tag_values in self.tags.items():
+                        tag_counter.update({tag_name: sum(tag_values)})
+
+                    basket.append(
+                        indent(
+                            (
+                                "Top tags".ljust(len(d4_l) - 6)
+                                + " : "
+                                + ", ".join(
+                                    [
+                                        f"{tn} ({tc})"
+                                        for tn, tc in tag_counter.most_common(5)
+                                    ]
+                                )
+                            ),
+                            prefix=prefix,
+                        )
+                    )
+
                 if not behaviour.lowercase:
                     text = "\n".join(basket)
 
@@ -340,7 +366,7 @@ class ListeningReport(NamedTuple):
 
                 # detail 2: total period artist count
                 basket.append(
-                    f"{prefix}{self.artists_count} artists (#{leaderboard_artists_pos}): "
+                    f"\n{prefix}{self.artists_count} artists (#{leaderboard_artists_pos}): "
                     + (
                         f"[{self.artists[0].name}]({self.artists[0].url})"
                         if behaviour.all_the_links
@@ -370,6 +396,21 @@ class ListeningReport(NamedTuple):
                     )
                 )
 
+                # detail 5: top tags
+                if len(self.tags) > 0:
+                    tag_counter = Counter[str]()
+
+                    for tag_name, tag_values in self.tags.items():
+                        tag_counter.update({tag_name: sum(tag_values)})
+
+                    basket.append(
+                        f"\n{prefix}Top tags"
+                        + ": "
+                        + ", ".join(
+                            [f"{tn} ({tc})" for tn, tc in tag_counter.most_common(5)]
+                        )
+                    )
+
                 if not behaviour.lowercase:
                     text = "\n".join(basket)
 
@@ -392,7 +433,6 @@ def get_listening_report(
     limiter: Limiter,
     behaviour: Behaviour,
 ) -> ListeningReport:
-
     target_url: str = f"https://www.last.fm/user/{target}/listening-report/week"
 
     page_res: Response = limiter.limit(get)(
@@ -422,6 +462,7 @@ def get_listening_report(
         albums_top_new=_get_albums_top_new(page),
         tracks_top_new=_get_tracks_top_new(page),
         listening_time_hours=_get_listening_time_hours(page),
+        tags=_get_tags(page),
     )
 
 
@@ -520,7 +561,9 @@ def _get_top_overview(
         if len(top.select(select_needle)) == 0:
             continue
 
-        assert (_n := top.select(".listening-report-secondary-top-item-name")) is not None
+        assert (
+            _n := top.select(".listening-report-secondary-top-item-name")
+        ) is not None
         assert (
             _v := top.select(".listening-report-secondary-top-item-value")
         ) is not None
@@ -595,6 +638,34 @@ def _get_albums_top_new(page: BeautifulSoup) -> ThingWithScrobbles:
 
 def _get_tracks_top_new(page: BeautifulSoup) -> ThingWithScrobbles:
     return _get_top_new_thing(page=page, select_needle=".top-new-item-type__track")
+
+
+def _get_tags(page: BeautifulSoup) -> dict[str, tuple[int, ...]]:
+    tags: dict[str, tuple[int, ...]] = {}
+
+    assert (_1 := page.select_one("#top-tags-over-time")) is not None
+    assert (_2 := _1.select_one(".js-top-tags-over-time-table")) is not None
+    assert (_3 := _2.select_one("tbody")) is not None
+
+    for tr in _3.select("tr"):
+        tag_name: str = ""
+        tag_counts: list[int] = []
+
+        for i, td in enumerate(tr.select("td")):
+            if i == 0:
+                tag_name = td.text.strip()
+
+            else:
+                assert (
+                    num := td.text.strip()
+                ).isnumeric(), (
+                    "second tag table td onwards should be numeric, but isn't"
+                )
+                tag_counts.append(int(num))
+
+        tags.update({tag_name: tuple(tag_counts)})
+
+    return tags
 
 
 def _rank(

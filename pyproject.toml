@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "lfcircle"
-version = "0.1.2"
+version = "0.1.3"
 description = "last.fm statistics generator for your friend circle!"
 authors = ["Mark Joshwel <mark@joshwel.co>"]
 license = "Unlicense"
