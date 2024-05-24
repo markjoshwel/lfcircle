@@ -51,6 +51,8 @@ USER_AGENT: Final[str] = (
     "Mozilla/5.0 " "(compatible; lfcircle; https://github.com/markjoshwel/lfcircle)"
 )
 
+GlobalTagCounter = dict[str, Counter[str]]
+
 
 class FormatTypeEnum(Enum):
     """
@@ -251,10 +253,14 @@ class ListeningReport(NamedTuple):
         leaderboard_albums_pos: int,
         leaderboard_tracks_pos: int,
         leaderboard_n: int,
+        global_tag_counter: GlobalTagCounter,
     ) -> str:
         basket: list[str] = []
         prefix: str = ""
         text: str = ""
+
+        tag_counter: Counter[str]
+        tags: list[str]
 
         match behaviour.format:
             case FormatTypeEnum.ASCII:
@@ -328,20 +334,33 @@ class ListeningReport(NamedTuple):
                     tag_counter = Counter[str]()
 
                     for tag_name, tag_values in self.tags.items():
-                        tag_counter.update({tag_name: sum(tag_values)})
+                        tag_counter.update(
+                            {tag_name: calculate_tag_score(tag_values, tags=self.tags)}
+                        )
+
+                    tags = []
+                    for tn, tc in tag_counter.most_common(5):
+                        tv: str = ""
+
+                        if tn in global_tag_counter:
+                            counter = global_tag_counter[tn]
+
+                            if len(counter) > 1:
+                                _tv = sum(
+                                    [
+                                        i if (user == self.user) else 0
+                                        for i, (user, _) in enumerate(
+                                            counter.most_common(), start=1
+                                        )
+                                    ]
+                                )
+                                tv = f": #{_tv}" if (_tv > 0) else ""
+
+                        tags.append(f"{tn} ({tc}%{tv})")
 
                     basket.append(
                         indent(
-                            (
-                                "Top tags".ljust(len(d4_l) - 6)
-                                + " : "
-                                + ", ".join(
-                                    [
-                                        f"{tn} ({tc})"
-                                        for tn, tc in tag_counter.most_common(5)
-                                    ]
-                                )
-                            ),
+                            ("Top tags".ljust(len(d4_l) - 6) + " : " + ", ".join(tags)),
                             prefix=prefix,
                         )
                     )
@@ -398,18 +417,34 @@ class ListeningReport(NamedTuple):
 
                 # detail 5: top tags
                 if len(self.tags) > 0:
-                    tag_counter = Counter[str]()
+                    tag_counter = Counter()
 
                     for tag_name, tag_values in self.tags.items():
-                        tag_counter.update({tag_name: sum(tag_values)})
-
-                    basket.append(
-                        f"\n{prefix}Top tags"
-                        + ": "
-                        + ", ".join(
-                            [f"{tn} ({tc})" for tn, tc in tag_counter.most_common(5)]
+                        tag_counter.update(
+                            {tag_name: calculate_tag_score(tag_values, tags=self.tags)}
                         )
-                    )
+
+                    tags = []
+                    for tn, tc in tag_counter.most_common(5):
+                        tv = ""
+
+                        if tn in global_tag_counter:
+                            counter = global_tag_counter[tn]
+
+                            if len(counter) > 1:
+                                _tv = sum(
+                                    [
+                                        i if (user == self.user) else 0
+                                        for i, (user, _) in enumerate(
+                                            counter.most_common(), start=1
+                                        )
+                                    ]
+                                )
+                                tv = f": #{_tv}" if (_tv > 0) else ""
+
+                        tags.append(f"{tn} ({tc}%{tv})")
+
+                    basket.append(f"\n{prefix}Top tags" + ": " + ", ".join(tags))
 
                 if not behaviour.lowercase:
                     text = "\n".join(basket)
@@ -682,6 +717,20 @@ def _rank(
         return 0
 
 
+def calculate_tag_score(
+    tag_values: tuple[int, ...], tags: dict[str, tuple[int, ...]]
+) -> int:
+    v_cum_sum = sum([sum(tv) for tv in tags.values()])
+    v_cum_avg = sum([(sum(tv) / len(tv)) for tv in tags.values()])
+
+    v_avg = (v_sum := sum(tag_values)) / len(tag_values)
+
+    tag_obj_score = (0.5 * v_avg) + (0.5 * v_sum)
+    tag_cum_score = (0.5 * v_cum_sum) + (0.5 * v_cum_avg)
+
+    return round(100 * (tag_obj_score / tag_cum_score))
+
+
 def make_circle_report(
     listening_reports: list[ListeningReport],
     behaviour: Behaviour,
@@ -697,6 +746,18 @@ def make_circle_report(
 
             case FormatTypeEnum.TELEGRAM:
                 text.append(behaviour.header + "\n")
+
+    # pre-string building global tag versus calculation
+    global_tag_counter: GlobalTagCounter = {}
+
+    for report in listening_reports:
+        for tag_name, tag_value in report.tags.items():
+            if tag_name not in global_tag_counter:
+                global_tag_counter[tag_name] = Counter()
+
+            global_tag_counter[tag_name][report.user] += calculate_tag_score(
+                tag_value, tags=report.tags
+            )
 
     for leaderboard_pos, report in enumerate(
         reversed(
@@ -732,6 +793,7 @@ def make_circle_report(
                     k=lambda r: r.tracks_count,
                 ),
                 leaderboard_n=len(listening_reports),
+                global_tag_counter=global_tag_counter,
             )
             + "\n"
         )
