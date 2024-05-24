@@ -261,6 +261,8 @@ class ListeningReport(NamedTuple):
 
         tag_counter: Counter[str]
         tags: list[str]
+        tv: str
+        tc: int | float
 
         match behaviour.format:
             case FormatTypeEnum.ASCII:
@@ -339,8 +341,9 @@ class ListeningReport(NamedTuple):
                         )
 
                     tags = []
-                    for tn, tc in tag_counter.most_common(5):
-                        tv: str = ""
+                    for tn, _tc in tag_counter.most_common(5):
+                        tv = ""
+                        tc = round(_tc)
 
                         if tn in global_tag_counter:
                             counter = global_tag_counter[tn]
@@ -355,6 +358,12 @@ class ListeningReport(NamedTuple):
                                     ]
                                 )
                                 tv = f": #{_tv}" if (_tv > 0) else ""
+
+                            _flt_ranks = [val for _, val in counter.most_common()]
+                            _int_ranks = [round(val) for val in _flt_ranks]
+
+                            if (tc in _int_ranks) and (_int_ranks.count(tc) > 1):  # type: ignore
+                                tc = round(_tc, 2)
 
                         tags.append(f"{tn} ({tc}%{tv})")
 
@@ -425,8 +434,9 @@ class ListeningReport(NamedTuple):
                         )
 
                     tags = []
-                    for tn, tc in tag_counter.most_common(5):
+                    for tn, _tc in tag_counter.most_common(5):
                         tv = ""
+                        tc = round(_tc)
 
                         if tn in global_tag_counter:
                             counter = global_tag_counter[tn]
@@ -441,6 +451,12 @@ class ListeningReport(NamedTuple):
                                     ]
                                 )
                                 tv = f": #{_tv}" if (_tv > 0) else ""
+
+                            _flt_ranks = [val for _, val in counter.most_common()]
+                            _int_ranks = [round(val) for val in _flt_ranks]
+
+                            if (tc in _int_ranks) and (_int_ranks.count(tc) > 1):  # type: ignore
+                                tc = round(_tc, 2)
 
                         tags.append(f"{tn} ({tc}%{tv})")
 
@@ -719,7 +735,7 @@ def _rank(
 
 def calculate_tag_score(
     tag_values: tuple[int, ...], tags: dict[str, tuple[int, ...]]
-) -> int:
+) -> float:
     v_cum_sum = sum([sum(tv) for tv in tags.values()])
     v_cum_avg = sum([(sum(tv) / len(tv)) for tv in tags.values()])
 
@@ -728,7 +744,7 @@ def calculate_tag_score(
     tag_obj_score = (0.5 * v_avg) + (0.5 * v_sum)
     tag_cum_score = (0.5 * v_cum_sum) + (0.5 * v_cum_avg)
 
-    return round(100 * (tag_obj_score / tag_cum_score))
+    return 100 * (tag_obj_score / tag_cum_score)
 
 
 def make_circle_report(
@@ -757,7 +773,7 @@ def make_circle_report(
 
             global_tag_counter[tag_name][report.user] += calculate_tag_score(
                 tag_value, tags=report.tags
-            )
+            )  # type: ignore
 
     for leaderboard_pos, report in enumerate(
         reversed(
