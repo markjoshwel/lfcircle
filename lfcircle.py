@@ -36,7 +36,8 @@ from collections import Counter
 from datetime import datetime, timedelta
 from enum import Enum
 from functools import wraps
-from sys import stderr
+from sys import stderr, argv
+from sys import exit as sysexit
 from textwrap import indent
 from time import sleep
 from traceback import format_exception
@@ -50,6 +51,7 @@ FORMAT_TELEGRAM_PREFIX: Final[str] = "   "
 USER_AGENT: Final[str] = (
     "Mozilla/5.0 " "(compatible; lfcircle; https://github.com/markjoshwel/lfcircle)"
 )
+__version__: Final[str] = "0.2.1"
 
 GlobalTagCounter = dict[str, Counter[str]]
 
@@ -105,6 +107,10 @@ def handle_args() -> Behaviour:
     """helper function to handle cli args"""
     info = __doc__.strip().split("\n", maxsplit=1)[0].split(":", maxsplit=1)
     default_behaviour = Behaviour()
+
+    if "--version" in argv:
+        print(__version__)
+        sysexit(0)
 
     parser = ArgumentParser(
         prog=info[0].strip(),
@@ -517,17 +523,21 @@ def get_listening_report(
     )
 
 
-def _int(number: str) -> int:
+def _int(number: str, failable: bool = False) -> int:
     n = (
         number.replace(",", "")
         .replace("scrobbles", "")
         .strip()
         .lstrip("days,")
+        .lstrip("days")
         .rstrip("hours")
         .strip()
     )
-    assert n.isnumeric()
-    return int(n)
+    if failable and n == "":
+        return 0
+    else:
+        assert n.isnumeric()
+        return int(n)
 
 
 def _get_scrobbles_count(page: BeautifulSoup) -> int:
@@ -558,7 +568,7 @@ def _get_listening_time_hours(page: BeautifulSoup) -> int:
         days: int = _int(_d1.text)
 
         assert (_h1 := fact.select_one(".quick-fact-data-detail")) is not None
-        hours: int = _int(_h1.text)
+        hours: int = _int(_h1.text, failable=True)
 
         return (days * 24) + hours
 
